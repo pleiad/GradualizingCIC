@@ -43,13 +43,14 @@ The subdirectory `src/Unknown` contains the development of the monotone unknown 
 # Axioms and assumptions
 
 We use the following axioms:
-- functional extensionality in `prelude.agda`
-- various standard lemmas wrt homotopy levels from HoTT in `prelude.agda`
+- functional extensionality in `prelude.agda` (`funext`, `funext-impl`, `∀impl-ext`)
+- various standard lemmas from HoTT wrt homotopy levels in `prelude.agda`; these are provable (`∀-hSet`, `∀impl-hSet`, `Σ-hset`)
+- Propositional extensionality for h-propositions in `prelude.agda` (`hpropext`, `hProp-hSet`)
 - the existence of coequalizers in `Unknown/Quotient.agda`
 - the proof that ep-pairs for Pi-types enjoy the section-rectraction property in `pi.agda` (troubles with dependent rewrite)
 
 We also use the following pragmas:
 - `--prop`: to obtain the definitionally irrelevant hierarchy of propositions Prop
-- `--without-K`: to disable UIP in pattern-matching, so that we are also consistent with univalence 
+- `--without-K`: to disable UIP in pattern-matching, in order to be agnostic wrt UIP
 - `--rewriting`: to add a definitional reduction rule for quotients 
 - `NO_POSITIVITY_CHECK` and `TERMINATING` in `DiscreteModelPartial.agda` and `UnivPartial.agda` reflecting the non-terminating nature of these models

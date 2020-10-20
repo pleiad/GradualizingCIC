@@ -21,7 +21,10 @@ open import Relation.Nullary renaming (Irrelevant to ishProp) public
 import Relation.Unary
 module RU = Relation.Unary
 
+-- Functional extensionality
+
 open import Axiom.Extensionality.Propositional
+
 FunextStatement : Set₁
 FunextStatement = Extensionality lzero lzero
 postulate funext : {l l' : Level} → Extensionality l l'
@@ -37,29 +40,97 @@ postulate ∀impl-ext : ∀ {a b} →
                    (∀ {x} → B₁ x ≡ B₂ x) →
                    (∀ {x} → B₁ x) ≡ (∀ {x} → B₂ x)
 
-hSet : ∀ {l} (A : Set l) → Set l
-hSet A = Irrelevant(_≡_ {_} {A})
-
-postulate irrelevant-is-hProp : ∀ {lA lB l} {A : Set lA} {B : Set lB} (R : REL A B l) → ishProp (Irrelevant R)
-postulate hSet-is-hProp : ∀ {l} {A : Set l} → ishProp (hSet A)
-
-postulate hProp-to-hSet : ∀ {l} {A : Set l} → ishProp A → hSet A
+-- Propositional extensionality
 
 postulate hpropext : ∀ {l} {P Q : Set l} → ishProp P → ishProp Q → (P → Q) → (Q → P) → P ≡ Q
 
 postulate hProp-hSet : ∀ {l} {P Q : Set l} → ishProp P → ishProp Q → ishProp (P ≡ Q)
 
+
+-- HoTT style lemmatas on equality
+
+_·_ : ∀ {l} {A : Set l} {x y z : A} (p : x ≡ y) (q : y ≡ z) → x ≡ z
+erefl · q = q
+
+
+!_ : ∀ {l} {A : Set l} {x y : A} (p : x ≡ y) → y ≡ x
+! erefl = erefl
+
+comp-left-inverse : ∀ {l} {A : Set l} {x y : A} (p : x ≡ y) → (! p) · p ≡ erefl
+comp-left-inverse erefl = erefl
+
+
+private
+  isContr : ∀ {l} (A : Set l) → Set l
+  isContr A = Σ[ x ∈ A ] ∀ y → x ≡ y
+
+hSet : ∀ {l} (A : Set l) → Set l
+hSet A = Irrelevant(_≡_ {_} {A})
+
+private
+  canonical-eq : ∀ {l} {A : Set l} (x0 x : A) (h : ∀ y → x0 ≡ y) (y : A) (xy : x ≡ y) → (! (h x)) · h y ≡ xy
+  canonical-eq x0 x h y erefl = comp-left-inverse (h x)
+
+  isContr-isContr : ∀ {l} (A : Set l) (ca : isContr A) → isContr (isContr A)
+  isContr-isContr A ca = ( ca , λ ca' → aux (ca .fst) (ca' .fst) (ca .snd (ca' .fst)) (ca .snd) (ca' .snd) )
+    where
+      aux : (x0 x1 : A) (e0 : x0 ≡ x1) (h0 : ∀ y → x0 ≡ y) (h1 : ∀ y -> x1 ≡ y) → (x0 , h0) ≡ (x1 , h1)
+      aux x0 x1 erefl h0 h1 =
+        PE.cong (λ h → x0 , h) (funext (λ y → (! (canonical-eq x0 x0 h0 y _)) ·
+        (canonical-eq x0 x0 h0 y _)))
+
+  isContr-hProp : ∀ {l} (A : Set l) (cA : isContr A) → ishProp A
+  isContr-hProp A (_ , h) x y = (! (h x)) · h y
+
+  isContr-hSet : ∀ {l} {A : Set l} (cA : isContr A) → hSet A
+  isContr-hSet cA {x} {y} xy xy' =
+    let ceq = canonical-eq (cA .fst) x (cA .snd) y in
+    (! (ceq xy)) · ceq xy'
+
+  isContr-eq : ∀ {l} (A : Set l) (cA : isContr A) (x y : A) → isContr (x ≡ y)
+  isContr-eq A (x0 , hx0) x y = ( (! (hx0 x)) · hx0 y ) , canonical-eq x0 x hx0 y
+
+
+
+  is-of-h-level : ∀ (n : Nat) {l} (P : Set l) → Set l
+  is-of-h-level 0 = isContr
+  is-of-h-level (suc n) P = ∀ (x y : P) → is-of-h-level n (x ≡ y)
+
+  hProp' : ∀ {l} (A : Set l) → Set l
+  hProp' = is-of-h-level 1
+
+  hProp'-hProp : ∀ {l} (A : Set l) (h : hProp' A) → ishProp A
+  hProp'-hProp A h x y = h x y .fst
+
+  ∀-hProp' : ∀ {l} {A : Set l} {P : A → Set l} (h : ∀ x → hProp' (P x)) → hProp' (∀ x → P x)
+  ∀-hProp' h = λ x y → (funext (λ z → h _ (x z) (y z) .fst)) ,
+    λ y₁ → isContr-hSet (x , (λ y₂ → funext (λ x₁ → h _ _ _ .fst))) _ _
+
+  hProp'-is-n-level : ∀ {l} (n : Nat) (A : Set l) → hProp' (is-of-h-level n A)
+  hProp'-is-n-level zero A c1 c2 = isContr-eq _ (isContr-isContr _ c1) c1 c2
+  hProp'-is-n-level (suc n) A = ∀-hProp' (λ x → ∀-hProp' (λ y → hProp'-is-n-level n _))
+
+  hProp-hProp' : ∀ {l} (A : Set l) (h : ishProp A) → hProp' A
+  hProp-hProp' A h = λ x y → (h x y) , (λ z → isContr-hSet (x , h x) _ _)
+
+
+hProp-to-hSet : ∀ {l} {A : Set l} → ishProp A → hSet A
+hProp-to-hSet hA {x} {y} = let ceqA = hProp-hProp' _ hA x y in isContr-hProp _ ceqA
+
+irrelevant-is-hProp : ∀ {lA lB l} {A : Set lA} {B : Set lB} (R : REL A B l) → ishProp (Irrelevant R)
+irrelevant-is-hProp R h h' =
+  funext-impl (funext-impl (funext (λ xy → funext λ xy' → hProp-to-hSet h _ _)))
+
+hSet-is-hProp : ∀ {l} {A : Set l} → ishProp (hSet A)
+hSet-is-hProp = irrelevant-is-hProp (_≡_)
+
+
+
+
 open import Data.Empty renaming (⊥ to Empty) public
 
+-- Proof of local Hedberg theorem
 module Hedberg where
-  _·_ : ∀ {l} {A : Set l} {x y z : A} (p : x ≡ y) (q : y ≡ z) → x ≡ z
-  erefl · q = q
-
-  !_ : {A : Set} {x y : A} (p : x ≡ y) → y ≡ x
-  ! erefl = erefl
-
-  comp-left-inverse : {A : Set} {x y : A} (p : x ≡ y) → (! p) · p ≡ erefl
-  comp-left-inverse erefl = erefl
 
   private
     normalize-eq-type : {A : Set} {a : A} (deca : RU.Decidable (_≡_ a)) {x : A} (p : a ≡ x) → Set
@@ -94,9 +165,11 @@ postulate Σ-hset : {A : Set} {B : A → Set} (hSetA : hSet A) (hSetB : ∀ a �
 J : {A : Set} {a : A} (P : (a' : A) (eq : a ≡ a') → Set) {a' : A} (eq : a ≡ a') (x : P a erefl) → P a' eq
 J P erefl x = x
 
+
+-- Strict proposition variants of standard logical constructions
+
 substProp : {A : Set} {a : A} (P : A → Prop) {a' : A} (eq : a ≡ a') (x : P a) → P a'
 substProp P erefl x = x
-
 
 data 𝟘 : Prop where
 
